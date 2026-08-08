@@ -202,7 +202,8 @@ func Parse(raw []byte) (*Email, error) {
         }
     } else {
         // Не multipart — просто читаем тело
-        bodyText, err := parseContent(msg.Body, header)
+        // Приводим mail.Header к textproto.MIMEHeader для совместимости
+        bodyText, err := parseContent(msg.Body, textproto.MIMEHeader(header))
         if err == nil {
             if strings.HasPrefix(mediaType, "text/plain") || mediaType == "" {
                 email.Text = strings.TrimSpace(bodyText)
