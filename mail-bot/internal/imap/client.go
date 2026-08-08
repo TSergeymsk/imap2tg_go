@@ -69,7 +69,7 @@ func (c *Client) FetchUIDs(start uint32) ([]uint32, error) {
     seqset := new(imap.SeqSet)
     seqset.AddRange(start, 0) // от start до максимума
     criteria := imap.NewSearchCriteria()
-    criteria.UID = seqset
+    criteria.Uid = seqset
     uids, err := c.conn.UidSearch(criteria)
     if err != nil {
         return nil, err
