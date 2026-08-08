@@ -1,0 +1,13 @@
+{
+    "imap_server": "imap.example.com:993",
+    "username": "user@example.com",
+    "password": "your_password",
+    "bot_token": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+    "chat_id": 123456789,
+    "chat_id_err": 987654321,
+    "encoding": "UTF-8",
+    "send_attach": true,
+    "proxy_url": "http://proxy.example.com:8118",
+    "logfile": "mail-bot.log",
+    "loglevel": "info"
+}
