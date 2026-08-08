@@ -3,6 +3,7 @@ package main
 import (
     "context"
     "fmt"
+    "io"
     "log/slog"
     "os"
     "os/signal"
@@ -131,9 +132,14 @@ func processMessage(imapClient *imap.Client, tg *telegram.Client, cfg *config.Co
     if err != nil {
         return fmt.Errorf("fetch message: %w", err)
     }
-    raw := msg.RawBody()
-    if raw == nil {
-        return fmt.Errorf("no raw body")
+
+    // Получаем сырое тело письма через поле Body
+    if msg.Body == nil {
+        return fmt.Errorf("no body in message")
+    }
+    raw, err := io.ReadAll(msg.Body)
+    if err != nil {
+        return fmt.Errorf("read body: %w", err)
     }
 
     email, err := mailparser.Parse(raw)
