@@ -7,7 +7,7 @@ import (
     "strings"
 
     "github.com/PuerkitoBio/goquery"
-    "github.com/emersion/go-message/mail"
+    "github.com/emersion/go-message"
     "golang.org/x/text/encoding/charmap"
     "golang.org/x/text/transform"
 )
@@ -25,6 +25,7 @@ type Email struct {
     Attachments []Attachment
 }
 
+// DecodeHeader декодирует заголовок в соответствии с RFC 2047
 func DecodeHeader(h string) string {
     decoder := new(mime.WordDecoder)
     decoded, err := decoder.DecodeHeader(h)
@@ -34,6 +35,7 @@ func DecodeHeader(h string) string {
     return decoded
 }
 
+// htmlToPlain конвертирует HTML в plain text, удаляя скрипты и стили
 func htmlToPlain(html string) string {
     doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
     if err != nil {
@@ -53,6 +55,7 @@ func htmlToPlain(html string) string {
     return strings.Join(cleanLines, "\n")
 }
 
+// getCharset извлекает кодировку из Content-Type
 func getCharset(contentType string) string {
     _, params, err := mime.ParseMediaType(contentType)
     if err != nil {
@@ -65,6 +68,7 @@ func getCharset(contentType string) string {
     return charset
 }
 
+// decodeCharset преобразует данные из указанной кодировки в UTF-8
 func decodeCharset(data []byte, charset string) (string, error) {
     if charset == "utf-8" || charset == "utf8" {
         return string(data), nil
@@ -90,12 +94,15 @@ func decodeCharset(data []byte, charset string) (string, error) {
     return string(decoded), nil
 }
 
+// Parse разбирает сырое письмо (RFC822)
 func Parse(raw []byte) (*Email, error) {
     r := bytes.NewReader(raw)
-    // mail.NewReader возвращает только *mail.Reader (без ошибки)
-    mr := mail.NewReader(r)
+    entity, err := message.NewReader(r)
+    if err != nil {
+        return nil, err
+    }
 
-    header := mr.Header
+    header := entity.Header
     subject := DecodeHeader(header.Get("Subject"))
     from := header.Get("From")
     fromAddr := from
@@ -116,46 +123,69 @@ func Parse(raw []byte) (*Email, error) {
         FromName: fromName,
     }
 
-    for {
-        p, err := mr.NextPart()
-        if err == io.EOF {
-            break
+    // Если письмо multipart, обрабатываем части
+    if entity.Multipart() {
+        for {
+            part, err := entity.NextPart()
+            if err == io.EOF {
+                break
+            }
+            if err != nil {
+                return nil, err
+            }
+
+            ctype := part.Header.Get("Content-Type")
+            mediaType, _, _ := mime.ParseMediaType(ctype)
+
+            // Проверяем, является ли часть вложением
+            disposition := part.Header.Get("Content-Disposition")
+            if strings.HasPrefix(disposition, "attachment") {
+                filename := part.FileName()
+                if filename != "" && !strings.EqualFold(filename, "noname") && !strings.EqualFold(filename, "unnamed") {
+                    filename = DecodeHeader(filename)
+                    data, err := io.ReadAll(part.Body)
+                    if err == nil {
+                        email.Attachments = append(email.Attachments, Attachment{
+                            Filename: filename,
+                            Data:     data,
+                        })
+                    }
+                }
+                continue
+            }
+
+            // Обрабатываем текстовые части
+            if strings.HasPrefix(mediaType, "text/") {
+                body, err := io.ReadAll(part.Body)
+                if err != nil {
+                    continue
+                }
+                charset := getCharset(ctype)
+                decoded, _ := decodeCharset(body, charset)
+
+                if mediaType == "text/plain" {
+                    email.Text = strings.TrimSpace(decoded)
+                } else if mediaType == "text/html" && email.Text == "" {
+                    email.Text = htmlToPlain(decoded)
+                }
+            }
         }
+    } else {
+        // Не multipart – читаем тело
+        body, err := io.ReadAll(entity.Body)
         if err != nil {
             return nil, err
         }
-
-        switch h := p.Header.(type) {
-        case *mail.InlineHeader:
-            contentType := h.Get("Content-Type")
-            mediaType, _, _ := mime.ParseMediaType(contentType)
-            body, err := io.ReadAll(p.Body)
-            if err != nil {
-                continue
-            }
-            charset := getCharset(contentType)
-            decoded, _ := decodeCharset(body, charset)
-
-            if mediaType == "text/plain" {
-                email.Text = strings.TrimSpace(decoded)
-            } else if mediaType == "text/html" && email.Text == "" {
-                email.Text = htmlToPlain(decoded)
-            }
-
-        case *mail.AttachmentHeader:
-            filename, err := h.Filename()
-            if err == nil && filename != "" &&
-                !strings.EqualFold(filename, "noname") &&
-                !strings.EqualFold(filename, "unnamed") {
-                filename = DecodeHeader(filename)
-                data, err := io.ReadAll(p.Body)
-                if err == nil {
-                    email.Attachments = append(email.Attachments, Attachment{
-                        Filename: filename,
-                        Data:     data,
-                    })
-                }
-            }
+        ctype := header.Get("Content-Type")
+        mediaType, _, _ := mime.ParseMediaType(ctype)
+        charset := getCharset(ctype)
+        decoded, _ := decodeCharset(body, charset)
+        if mediaType == "text/plain" {
+            email.Text = strings.TrimSpace(decoded)
+        } else if mediaType == "text/html" {
+            email.Text = htmlToPlain(decoded)
+        } else {
+            email.Text = "Нет текста письма"
         }
     }
 
