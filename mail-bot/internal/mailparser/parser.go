@@ -2,12 +2,17 @@ package mailparser
 
 import (
     "bytes"
+    "encoding/base64"
+    "fmt"
     "io"
     "mime"
+    "mime/multipart"
+    "mime/quotedprintable"
+    "net/mail"
+    "net/textproto"
     "strings"
 
     "github.com/PuerkitoBio/goquery"
-    "github.com/emersion/go-message"
     "golang.org/x/text/encoding/charmap"
     "golang.org/x/text/transform"
 )
@@ -94,21 +99,44 @@ func decodeCharset(data []byte, charset string) (string, error) {
     return string(decoded), nil
 }
 
-// Parse разбирает сырое письмо (RFC822)
+// parseContent читает тело части и декодирует с учётом Content-Transfer-Encoding и charset
+func parseContent(body io.Reader, header textproto.MIMEHeader) (string, error) {
+    ctype := header.Get("Content-Type")
+    charset := getCharset(ctype)
+    encoding := header.Get("Content-Transfer-Encoding")
+    var reader io.Reader = body
+
+    switch encoding {
+    case "base64":
+        reader = base64.NewDecoder(base64.StdEncoding, reader)
+    case "quoted-printable":
+        reader = quotedprintable.NewReader(reader)
+    }
+
+    data, err := io.ReadAll(reader)
+    if err != nil {
+        return "", err
+    }
+    return decodeCharset(data, charset)
+}
+
+// Parse разбирает сырое письмо (RFC822) с использованием стандартной библиотеки
 func Parse(raw []byte) (*Email, error) {
     r := bytes.NewReader(raw)
-    entity, err := message.NewReader(r)
+    msg, err := mail.ReadMessage(r)
     if err != nil {
         return nil, err
     }
 
-    header := entity.Header
+    header := msg.Header
     subject := DecodeHeader(header.Get("Subject"))
     from := header.Get("From")
     fromAddr := from
     fromName := from
 
-    if addrs, err := header.AddressList("From"); err == nil && len(addrs) > 0 {
+    // Разбор адреса "From"
+    addrs, err := header.AddressList("From")
+    if err == nil && len(addrs) > 0 {
         fromName = addrs[0].Name
         fromAddr = addrs[0].Address
         if fromName == "" {
@@ -123,27 +151,33 @@ func Parse(raw []byte) (*Email, error) {
         FromName: fromName,
     }
 
-    // Если письмо multipart, обрабатываем части
-    if entity.Multipart() {
+    // Определяем, multipart или нет
+    mediaType, params, err := mime.ParseMediaType(header.Get("Content-Type"))
+    if err == nil && strings.HasPrefix(mediaType, "multipart/") {
+        boundary, ok := params["boundary"]
+        if !ok {
+            return nil, fmt.Errorf("no boundary in multipart")
+        }
+        mr := multipart.NewReader(msg.Body, boundary)
         for {
-            part, err := entity.NextPart()
+            part, err := mr.NextPart()
             if err == io.EOF {
                 break
             }
             if err != nil {
                 return nil, err
             }
-
+            // Обработка части
             ctype := part.Header.Get("Content-Type")
-            mediaType, _, _ := mime.ParseMediaType(ctype)
-
-            // Проверяем, является ли часть вложением
+            partMediaType, _, _ := mime.ParseMediaType(ctype)
             disposition := part.Header.Get("Content-Disposition")
+
+            // Если вложение
             if strings.HasPrefix(disposition, "attachment") {
                 filename := part.FileName()
                 if filename != "" && !strings.EqualFold(filename, "noname") && !strings.EqualFold(filename, "unnamed") {
                     filename = DecodeHeader(filename)
-                    data, err := io.ReadAll(part.Body)
+                    data, err := io.ReadAll(part)
                     if err == nil {
                         email.Attachments = append(email.Attachments, Attachment{
                             Filename: filename,
@@ -154,36 +188,29 @@ func Parse(raw []byte) (*Email, error) {
                 continue
             }
 
-            // Обрабатываем текстовые части
-            if strings.HasPrefix(mediaType, "text/") {
-                body, err := io.ReadAll(part.Body)
-                if err != nil {
-                    continue
-                }
-                charset := getCharset(ctype)
-                decoded, _ := decodeCharset(body, charset)
-
-                if mediaType == "text/plain" {
-                    email.Text = strings.TrimSpace(decoded)
-                } else if mediaType == "text/html" && email.Text == "" {
-                    email.Text = htmlToPlain(decoded)
+            // Текстовая часть
+            if strings.HasPrefix(partMediaType, "text/") {
+                bodyText, err := parseContent(part, part.Header)
+                if err == nil {
+                    if partMediaType == "text/plain" && email.Text == "" {
+                        email.Text = strings.TrimSpace(bodyText)
+                    } else if partMediaType == "text/html" && email.Text == "" {
+                        email.Text = htmlToPlain(bodyText)
+                    }
                 }
             }
         }
     } else {
-        // Не multipart – читаем тело
-        body, err := io.ReadAll(entity.Body)
-        if err != nil {
-            return nil, err
-        }
-        ctype := header.Get("Content-Type")
-        mediaType, _, _ := mime.ParseMediaType(ctype)
-        charset := getCharset(ctype)
-        decoded, _ := decodeCharset(body, charset)
-        if mediaType == "text/plain" {
-            email.Text = strings.TrimSpace(decoded)
-        } else if mediaType == "text/html" {
-            email.Text = htmlToPlain(decoded)
+        // Не multipart — просто читаем тело
+        bodyText, err := parseContent(msg.Body, header)
+        if err == nil {
+            if strings.HasPrefix(mediaType, "text/plain") || mediaType == "" {
+                email.Text = strings.TrimSpace(bodyText)
+            } else if strings.HasPrefix(mediaType, "text/html") {
+                email.Text = htmlToPlain(bodyText)
+            } else {
+                email.Text = "Нет текста письма"
+            }
         } else {
             email.Text = "Нет текста письма"
         }
