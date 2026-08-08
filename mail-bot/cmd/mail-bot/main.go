@@ -12,7 +12,7 @@ import (
     "syscall"
     "time"
 
-    "github.com/emersion/go-imap"
+    goimap "github.com/emersion/go-imap"
     "mail-bot/internal/config"
     "mail-bot/internal/imap"
     "mail-bot/internal/logger"
@@ -136,15 +136,14 @@ func processMessage(imapClient *imap.Client, tg *telegram.Client, cfg *config.Co
 
     // Извлекаем тело письма из msg.Body (map[section]Literal)
     var raw []byte
-    // Используем стандартную секцию (пустой BodySectionName)
-    section := &imap.BodySectionName{}
+    section := &goimap.BodySectionName{} // стандартная секция
     if literal, ok := msg.Body[section]; ok {
         raw, err = io.ReadAll(literal)
         if err != nil {
             return fmt.Errorf("read body: %w", err)
         }
     } else {
-        // Если не нашли, попробуем взять первую попавшуюся секцию
+        // fallback: берём первую попавшуюся секцию
         for _, literal := range msg.Body {
             raw, err = io.ReadAll(literal)
             if err == nil && len(raw) > 0 {
