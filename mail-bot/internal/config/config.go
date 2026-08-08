@@ -10,8 +10,8 @@ type Config struct {
     Username   string `json:"username"`
     Password   string `json:"password"`
     BotToken   string `json:"bot_token"`
-    ChatID     int64  `json:"chat_id"`
-    ChatIDErr  int64  `json:"chat_id_err,omitempty"`
+    ChatID     int64  `json:"chat_id,string"`
+    ChatIDErr  int64  `json:"chat_id_err,string,omitempty"`
     Encoding   string `json:"encoding"`
     SendAttach bool   `json:"send_attach"`
     ProxyURL   string `json:"proxy_url,omitempty"`
@@ -28,7 +28,6 @@ func Load(path string) (*Config, error) {
     if err := json.Unmarshal(data, &cfg); err != nil {
         return nil, err
     }
-    // Значения по умолчанию
     if cfg.Encoding == "" {
         cfg.Encoding = "UTF-8"
     }
