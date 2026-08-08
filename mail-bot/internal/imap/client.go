@@ -35,7 +35,6 @@ func (c *Client) EnsureConnected() error {
         c.conn = nil
     }
 
-    // Добавляем порт 993, если не указан
     addr := c.server
     if !strings.Contains(addr, ":") {
         addr = addr + ":993"
@@ -62,24 +61,17 @@ func (c *Client) Select(mailbox string) (*imap.MailboxStatus, error) {
     return c.conn.Select(mailbox, false)
 }
 
+// FetchUIDs возвращает все UID >= start (включая start) с помощью UidSearch
 func (c *Client) FetchUIDs(start uint32) ([]uint32, error) {
     if c.conn == nil {
         return nil, fmt.Errorf("not connected")
     }
     seqset := new(imap.SeqSet)
-    seqset.AddRange(start, 0)
-
-    messages := make(chan *imap.Message, 100)
-    done := make(chan error, 1)
-    go func() {
-        done <- c.conn.UidFetch(seqset, []imap.FetchItem{imap.FetchItem("UID")}, messages)
-    }()
-
-    var uids []uint32
-    for msg := range messages {
-        uids = append(uids, msg.Uid)
-    }
-    if err := <-done; err != nil {
+    seqset.AddRange(start, 0) // от start до максимума
+    criteria := imap.NewSearchCriteria()
+    criteria.UID = seqset
+    uids, err := c.conn.UidSearch(criteria)
+    if err != nil {
         return nil, err
     }
     return uids, nil

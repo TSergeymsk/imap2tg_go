@@ -116,8 +116,13 @@ func run(ctx context.Context, cfg *config.Config, tg *telegram.Client, log *slog
                 if uid > lastID {
                     lastID = uid
                 }
+                // Сохраняем lastID в описание чата, игнорируя ошибку "not modified"
                 if err := tg.SetChatDescription(cfg.ChatID, strconv.FormatUint(uint64(lastID), 10)); err != nil {
-                    log.Error("save last_id failed", "uid", lastID, "err", err)
+                    if strings.Contains(err.Error(), "chat description is not modified") {
+                        log.Debug("chat description already set", "uid", lastID)
+                    } else {
+                        log.Error("save last_id failed", "uid", lastID, "err", err)
+                    }
                 } else {
                     log.Debug("saved last_id", "uid", lastID)
                 }
@@ -134,16 +139,14 @@ func processMessage(imapClient *imap.Client, tg *telegram.Client, cfg *config.Co
         return fmt.Errorf("fetch message: %w", err)
     }
 
-    // Извлекаем тело письма из msg.Body (map[section]Literal)
     var raw []byte
-    section := &goimap.BodySectionName{} // стандартная секция
+    section := &goimap.BodySectionName{}
     if literal, ok := msg.Body[section]; ok {
         raw, err = io.ReadAll(literal)
         if err != nil {
             return fmt.Errorf("read body: %w", err)
         }
     } else {
-        // fallback: берём первую попавшуюся секцию
         for _, literal := range msg.Body {
             raw, err = io.ReadAll(literal)
             if err == nil && len(raw) > 0 {
