@@ -4,6 +4,7 @@ import (
     "crypto/tls"
     "fmt"
     "log/slog"
+    "strings"
 
     "github.com/emersion/go-imap"
     "github.com/emersion/go-imap/client"
@@ -34,7 +35,13 @@ func (c *Client) EnsureConnected() error {
         c.conn = nil
     }
 
-    cl, err := client.DialTLS(c.server, &tls.Config{InsecureSkipVerify: true})
+    // Добавляем порт 993, если не указан
+    addr := c.server
+    if !strings.Contains(addr, ":") {
+        addr = addr + ":993"
+    }
+
+    cl, err := client.DialTLS(addr, &tls.Config{InsecureSkipVerify: true})
     if err != nil {
         return fmt.Errorf("dial: %w", err)
     }
@@ -44,7 +51,7 @@ func (c *Client) EnsureConnected() error {
     }
 
     c.conn = cl
-    c.logger.Info("IMAP connected", "server", c.server)
+    c.logger.Info("IMAP connected", "server", addr)
     return nil
 }
 
