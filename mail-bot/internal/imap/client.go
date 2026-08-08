@@ -61,13 +61,16 @@ func (c *Client) Select(mailbox string) (*imap.MailboxStatus, error) {
     return c.conn.Select(mailbox, false)
 }
 
-// FetchUIDs возвращает все UID >= start (включая start) с помощью UidSearch
 func (c *Client) FetchUIDs(start uint32) ([]uint32, error) {
     if c.conn == nil {
         return nil, fmt.Errorf("not connected")
     }
     seqset := new(imap.SeqSet)
-    seqset.AddRange(start, 0) // от start до максимума
+    if start > 0 {
+        seqset.AddRange(start, ^uint32(0))
+    } else {
+        seqset.AddRange(1, ^uint32(0))
+    }
     criteria := imap.NewSearchCriteria()
     criteria.Uid = seqset
     uids, err := c.conn.UidSearch(criteria)
