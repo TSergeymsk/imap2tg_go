@@ -69,20 +69,20 @@ func decodeCharset(data []byte, charset string) (string, error) {
     if charset == "utf-8" || charset == "utf8" {
         return string(data), nil
     }
-    var decoder transform.Transformer
+    var decoder *charmap.Charmap
     switch charset {
     case "windows-1251", "cp1251":
-        decoder = charmap.Windows1251.NewDecoder()
+        decoder = charmap.Windows1251
     case "koi8-r":
-        decoder = charmap.KOI8R.NewDecoder()
+        decoder = charmap.KOI8R
     default:
-        if enc, ok := charmap.EncodingForName(charset); ok {
-            decoder = enc.NewDecoder()
-        } else {
-            return string(data), nil
-        }
+        // Неизвестная кодировка – возвращаем как есть
+        return string(data), nil
     }
-    reader := transform.NewReader(bytes.NewReader(data), decoder)
+    if decoder == nil {
+        return string(data), nil
+    }
+    reader := transform.NewReader(bytes.NewReader(data), decoder.NewDecoder())
     decoded, err := io.ReadAll(reader)
     if err != nil {
         return string(data), nil
@@ -92,10 +92,8 @@ func decodeCharset(data []byte, charset string) (string, error) {
 
 func Parse(raw []byte) (*Email, error) {
     r := bytes.NewReader(raw)
-    mr, err := mail.NewReader(r)
-    if err != nil {
-        return nil, err
-    }
+    // mail.NewReader возвращает только *mail.Reader (без ошибки)
+    mr := mail.NewReader(r)
 
     header := mr.Header
     subject := DecodeHeader(header.Get("Subject"))
@@ -145,8 +143,8 @@ func Parse(raw []byte) (*Email, error) {
             }
 
         case *mail.AttachmentHeader:
-            filename := h.Filename()
-            if filename != "" &&
+            filename, err := h.Filename()
+            if err == nil && filename != "" &&
                 !strings.EqualFold(filename, "noname") &&
                 !strings.EqualFold(filename, "unnamed") {
                 filename = DecodeHeader(filename)

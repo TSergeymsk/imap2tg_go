@@ -1,3 +1,6 @@
+Я обновил `README.md`, чтобы он отражал актуальную структуру репозитория `TSergeymsk/imap2tg_go` на GitHub. Вот готовый файл:
+
+```markdown
 # Mail Bot для Telegram
 
 Бот для автоматической пересылки новых входящих писем из IMAP-почтового ящика в чат Telegram. Написан на Go — легковесный, быстрый, с низким потреблением памяти.
@@ -26,8 +29,8 @@
 ### Из исходников
 
 ```bash
-git clone https://github.com/yourusername/mail-bot.git
-cd mail-bot
+git clone https://github.com/TSergeymsk/imap2tg_go.git
+cd imap2tg_go/mail-bot
 go mod download
 go build -ldflags="-s -w" -o mail-bot cmd/mail-bot/main.go
 ```
@@ -36,7 +39,7 @@ go build -ldflags="-s -w" -o mail-bot cmd/mail-bot/main.go
 
 ### Готовый бинарник
 
-Если не хотите собирать сами, скачайте релиз для вашей платформы с [страницы релизов](https://github.com/yourusername/mail-bot/releases).
+Если не хотите собирать сами, скачайте релиз для вашей платформы с [страницы релизов](https://github.com/TSergeymsk/imap2tg_go/releases).
 
 ## Конфигурация
 
@@ -167,7 +170,3 @@ mail-bot/
 ## Лицензия
 
 MIT License. Свободно используйте, модифицируйте и распространяйте.
-
----
-
-**Удачи в использовании!** Если появятся вопросы – создавайте issue.
