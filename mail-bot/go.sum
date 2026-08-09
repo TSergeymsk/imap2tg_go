@@ -1,0 +1,2 @@
+cd ~/imap2tg_go/mail-bot
+go mod tidy

@@ -17,13 +17,9 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.21'
-        cache: false  # отключаем кеш для простоты (можно вернуть позже)
+        cache: false  # отключаем кеш, чтобы избежать проблем с go.sum
 
-    - name: Download dependencies
-      run: go mod download
-      working-directory: ./mail-bot
-
-    - name: Tidy dependencies
+    - name: Tidy and download dependencies
       run: go mod tidy
       working-directory: ./mail-bot
 
