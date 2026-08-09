@@ -17,9 +17,9 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.21'
-        cache: false  # отключаем кеш, чтобы избежать проблем с go.sum
+        cache: false  # отключаем кеш для простоты
 
-    - name: Tidy and download dependencies
+    - name: Tidy dependencies
       run: go mod tidy
       working-directory: ./mail-bot
 
@@ -27,20 +27,6 @@ jobs:
       run: go build -v ./...
       working-directory: ./mail-bot
 
-    - name: Run tests with race detector
-      run: go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+    - name: Run tests
+      run: go test -race ./...
       working-directory: ./mail-bot
-
-    - name: Publish coverage report
-      uses: gwatts/go-coverage-action@v2
-      id: coverage
-      with:
-        cover-pkg: ./...
-        cover-file: ./mail-bot/coverage.txt
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        slug: TSergeymsk/imap2tg_go
-        files: ./mail-bot/coverage.txt
