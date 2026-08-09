@@ -1,4 +1,3 @@
-# .github/workflows/go.yml
 name: CI для imap2tg_go
 
 on:
@@ -11,39 +10,37 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
     steps:
-    # 1. Загружаем код из репозитория
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    # 2. Устанавливаем Go
-    - name: Установка Go
+    - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21'  # Используем версию из вашего go.mod[reference:1][reference:2]
+        go-version: '1.21'
+        # Кешируем на основе go.mod, а не go.sum
+        cache-dependency-path: go.mod
 
-    # 3. Скачиваем зависимости
-    - name: Загрузка зависимостей
+    - name: Download dependencies
       run: go mod download
 
-    # 4. Запускаем тесты с проверкой на гонки (race detector) и записью покрытия
-    - name: Запуск тестов
-      run: go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+    - name: Tidy dependencies (create go.sum if missing)
+      run: go mod tidy
 
-    # 5. Собираем проект
-    - name: Сборка
+    - name: Build
       run: go build -v ./...
 
-    # 6. (Опционально) Публикуем отчёт о покрытии в GitHub
-    - name: Публикация отчёта о покрытии
+    - name: Run tests with race detector
+      run: go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+    - name: Publish coverage report
       uses: gwatts/go-coverage-action@v2
       id: coverage
       with:
-        cover-pkg: ./...  # Собираем покрытие для всех пакетов[reference:3]
-        # report-url: https://ваш-сайт/отчёты  # Если хотите выгружать HTML-отчёт
+        cover-pkg: ./...
 
-    # 7. (Опционально) Отправляем результаты в Codecov для красивого отображения
-    - name: Отправка в Codecov
+    - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       with:
-        token: ${{ secrets.CODECOV_TOKEN }}  # Токен нужно создать в настройках репозитория[reference:4]
+        token: ${{ secrets.CODECOV_TOKEN }}
         slug: TSergeymsk/imap2tg_go
         files: ./coverage.txt
