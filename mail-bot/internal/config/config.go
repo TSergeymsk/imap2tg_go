@@ -17,6 +17,11 @@ type Config struct {
     ProxyURL   string `json:"proxy_url,omitempty"`
     LogFile    string `json:"logfile"`
     LogLevel   string `json:"loglevel"`
+
+    // TLS/SSL настройки
+    TLSInsecureSkipVerify bool   `json:"tls_insecure_skip_verify,omitempty"`
+    TLSCACertFile         string `json:"tls_ca_cert_file,omitempty"`
+    TLSCACertDir          string `json:"tls_ca_cert_dir,omitempty"`
 }
 
 func Load(path string) (*Config, error) {

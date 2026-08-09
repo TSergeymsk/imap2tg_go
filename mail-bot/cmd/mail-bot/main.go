@@ -56,7 +56,10 @@ func main() {
 }
 
 func run(ctx context.Context, cfg *config.Config, tg *telegram.Client, log *slog.Logger) error {
-    imapClient := imap.New(cfg.IMAPServer, cfg.Username, cfg.Password, log)
+    imapClient, err := imap.New(cfg.IMAPServer, cfg.Username, cfg.Password, cfg, log)
+    if err != nil {
+        return fmt.Errorf("create IMAP client: %w", err)
+    }
 
     lastID := uint32(0)
     for {
@@ -116,7 +119,6 @@ func run(ctx context.Context, cfg *config.Config, tg *telegram.Client, log *slog
                 if uid > lastID {
                     lastID = uid
                 }
-                // Сохраняем lastID в описание чата, игнорируя ошибку "not modified"
                 if err := tg.SetChatDescription(cfg.ChatID, strconv.FormatUint(uint64(lastID), 10)); err != nil {
                     if strings.Contains(err.Error(), "chat description is not modified") {
                         log.Debug("chat description already set", "uid", lastID)
