@@ -1,15 +1,43 @@
-name: Build and Release
+name: CI, Build and Release
 
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
   workflow_dispatch:   # ручной запуск
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+        cache: false
+
+    - name: Tidy dependencies
+      run: go mod tidy
+      working-directory: ./mail-bot
+
+    - name: Build (compile check)
+      run: go build -v ./...
+      working-directory: ./mail-bot
+
+    - name: Run tests
+      run: go test -race ./...
+      working-directory: ./mail-bot
+
+  release:
+    needs: test   # запускается только после успешного test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
-      contents: write   # даём права на создание релизов
+      contents: write
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
