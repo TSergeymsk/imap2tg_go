@@ -1,7 +1,6 @@
 package mailparser
 
 import (
-    "strings"
     "testing"
 )
 
