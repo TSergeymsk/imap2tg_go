@@ -1,0 +1,47 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:   # позволяет запускать вручную
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+        cache: false
+
+    - name: Tidy dependencies
+      run: go mod tidy
+      working-directory: ./mail-bot
+
+    - name: Build binary for Linux amd64
+      run: |
+        cd mail-bot
+        GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o imap2tg_go-linux-amd64 cmd/mail-bot/main.go
+
+    - name: Upload binary as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: imap2tg_go-linux-amd64
+        path: mail-bot/imap2tg_go-linux-amd64
+
+    - name: Create/Update latest release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: latest
+        name: "Latest release (auto-built from main)"
+        body: "Это последняя сборка из ветки `main`. Обновляется при каждом пуше.\n\nСкачайте бинарник для Linux x86_64."
+        files: mail-bot/imap2tg_go-linux-amd64
+        draft: false
+        prerelease: false
+        overwrite: true   # перезаписывает assets, если релиз уже существует
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
