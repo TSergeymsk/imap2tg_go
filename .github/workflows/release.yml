@@ -3,11 +3,13 @@ name: Build and Release
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:   # позволяет запускать вручную
+  workflow_dispatch:   # ручной запуск
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # даём права на создание релизов
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -27,21 +29,15 @@ jobs:
         cd mail-bot
         GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o imap2tg_go-linux-amd64 cmd/mail-bot/main.go
 
-    - name: Upload binary as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: imap2tg_go-linux-amd64
-        path: mail-bot/imap2tg_go-linux-amd64
-
     - name: Create/Update latest release
-      uses: softprops/action-gh-release@v2
+      uses: ncipollo/release-action@v1
       with:
-        tag_name: latest
+        tag: latest
         name: "Latest release (auto-built from main)"
         body: "Это последняя сборка из ветки `main`. Обновляется при каждом пуше.\n\nСкачайте бинарник для Linux x86_64."
-        files: mail-bot/imap2tg_go-linux-amd64
+        artifacts: mail-bot/imap2tg_go-linux-amd64
+        allowUpdates: true
+        replacesArtifacts: true
         draft: false
         prerelease: false
-        overwrite: true   # перезаписывает assets, если релиз уже существует
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GITHUB_TOKEN }}
